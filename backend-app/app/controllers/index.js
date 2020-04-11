@@ -1,6 +1,6 @@
 const queries = require('./queries');
-const createNewCar = require('./createNewCar');
+const invoke = require('./invoke');
 module.exports = {
     queries: queries,
-    createNewCar: createNewCar
+    invoke: invoke
 }
