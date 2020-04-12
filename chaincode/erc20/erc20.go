@@ -77,48 +77,18 @@ func (cc *ERC20Chaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
 
 func (cc *ERC20Chaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	fcn, params := stub.GetFunctionAndParameters()
+	fmt.Println("invoke is running " + fcn + " with params " + params[0])
 
-	args := stub.GetArgs()
-	fmt.Println("GetArgs(): ")
-	for _, arg := range args {
-		argStr := string(arg)
-		fmt.Printf("%s ", argStr)
-	}
-	fmt.Println()
-
-	stringArgs := stub.GetStringArgs()
-	fmt.Println("GetStringArgs(): ", stringArgs)
-
-	argsSlide, _ := stub.GetArgsSlice()
-	fmt.Println("GetArgsSlice(): ", argsSlide)
-
-	switch fcn {
-	case "totalSupply":
+	if fcn == "totalSupply" {
 		return cc.totalSupply(stub, params)
-	case "balanceOf":
+	} else if fcn == "balanceOf" {
 		return cc.balanceOf(stub, params)
-	case "transfer":
+	} else if fcn == "transfer" {
 		return cc.transfer(stub, params)
-	case "allowance":
-		return cc.allowance(stub, params)
-	case "approve":
-		return cc.approve(stub, params)
-	case "transferFrom":
-		return cc.transferFrom(stub, params)
-	case "increaseAllowance":
-		return cc.increaseAllowance(stub, params)
-	case "decreaseAllowance":
-		return cc.decreaseAllowance(stub, params)
-	case "mint":
-		return cc.mint(stub, params)
-	case "burn":
-		return cc.mint(stub, params)
-
-	default:
-		// 이런식으로 없을경우 다른 메시지를 주는것도 가능하다.
-		// return pb.Response{Status: 404, Message: "404 Not Found", Payload: nil}
-		return shim.Error("cannot find function")
 	}
+
+	fmt.Println("invoke did not find func: " + fcn) //error
+	return shim.Error("Received unknown function invocation" + fcn)
 }
 
 func (cc *ERC20Chaincode) totalSupply(stub shim.ChaincodeStubInterface, params []string) pb.Response {
@@ -163,7 +133,7 @@ func (cc *ERC20Chaincode) balanceOf(stub shim.ChaincodeStubInterface, params []s
 	}
 
 	fmt.Println(address + "'s balance is " + string(amountBytes))
-	if amountBytes != nil {
+	if amountBytes == nil {
 		return shim.Success([]byte("0"))
 	}
 	return shim.Success(amountBytes)
