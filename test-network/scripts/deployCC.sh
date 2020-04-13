@@ -227,12 +227,12 @@ chaincodeInvokeInit() {
   # it using the "-o" option
   if [ -z "$CORE_PEER_TLS_ENABLED" -o "$CORE_PEER_TLS_ENABLED" = "false" ]; then
     set -x
-    peer chaincode invoke -o localhost:7050 -C $CHANNEL_NAME -n erc20 $PEER_CONN_PARMS --isInit -c '{"function":"init","Args":["SotaNext", "STK", "Org1", "200000"]}' >&log.txt
+    peer chaincode invoke -o localhost:7050 -C $CHANNEL_NAME -n erc20 $PEER_CONN_PARMS --isInit -c '{"function":"init","Args":["IntageToken", "IGT", "SotaNext"]}' >&log.txt
     res=$?
     set +x
   else
     set -x
-    peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls $CORE_PEER_TLS_ENABLED --cafile $ORDERER_CA -C $CHANNEL_NAME -n erc20 $PEER_CONN_PARMS --isInit -c '{"function":"init","Args":["SotaNext", "STK", "Org1", "200000"]}' >&log.txt
+    peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls $CORE_PEER_TLS_ENABLED --cafile $ORDERER_CA -C $CHANNEL_NAME -n erc20 $PEER_CONN_PARMS --isInit -c '{"function":"init","Args":["IntageToken", "IGT", "SotaNext"]}' >&log.txt
     res=$?
     set +x
   fi

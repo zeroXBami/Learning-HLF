@@ -23,13 +23,15 @@ type TransferEvent struct {
 	Amount    int    `json:"amount"`
 }
 
-// Token information
-type ERC20Metadata struct {
-	Name        string `json:"name`
-	Symbol      string `json:"symbol`
-	Owner       string `json:"owner`
-	TotalSupply uint64 `json:"totalSupply"`
+type PrivateData struct {
+	Id    string `json:"id`
+	Owner string `json:"owner`
 }
+
+const SymbolKey = `tokenSymbol`
+const NameKey = `tokenName`
+const TotalSupplyKey = `totalSupply`
+const PublisherKey = `publisher`
 
 func main() {
 	err := shim.Start(new(ERC20Chaincode))
@@ -39,41 +41,38 @@ func main() {
 }
 
 // Init function, called when chaincode installed on network
-// params - tokenName, symbol, owner, amount
+// params - tokenName, symbol, publisher
 func (cc *ERC20Chaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
 	_, params := stub.GetFunctionAndParameters()
 	fmt.Println("Unit called with params", params)
-	if len(params) != 4 {
+	if len(params) != 3 {
 		return shim.Error("incorect number of params")
 	}
 
-	tokenName, symbol, owner, amount := params[0], params[1], params[2], params[3]
+	tokenName, symbol, publisher := params[0], params[1], params[2]
 
-	amountUint, err := strconv.ParseUint(string(amount), 10, 64)
-
-	if err != nil {
-		return shim.Error("Amount must be a number and can not be negative")
-	}
-
-	if len(tokenName) == 0 || len(symbol) == 0 || len(owner) == 0 {
+	if len(tokenName) == 0 || len(symbol) == 0 || len(publisher) == 0 {
 		return shim.Error("tokenName, symbol or owner can not be empty")
 	}
 
-	erc20 := &ERC20Metadata{Name: tokenName, Symbol: symbol, Owner: owner, TotalSupply: amountUint}
-
-	erc20Bytes, err := json.Marshal(erc20)
-	if err != nil {
-		return shim.Error(" Failed to Marshal erc20")
-	}
-
-	err = stub.PutState(tokenName, erc20Bytes)
+	err := stub.PutState(NameKey, []byte(tokenName))
 	if err != nil {
 		return shim.Error("Failed to putstate, error: " + err.Error())
 	}
 
-	err = stub.PutState(owner, []byte(amount))
+	err = stub.PutState(SymbolKey, []byte(symbol))
 	if err != nil {
-		return shim.Error(" Failed to putstate, error: " + err.Error())
+		return shim.Error("Failed to putstate, error: " + err.Error())
+	}
+
+	err = stub.PutState(PublisherKey, []byte(publisher))
+	if err != nil {
+		return shim.Error("Failed to putstate, error: " + err.Error())
+	}
+
+	err = stub.PutState(TotalSupplyKey, []byte("0"))
+	if err != nil {
+		return shim.Error("Failed to putstate, error: " + err.Error())
 	}
 
 	return shim.Success(nil)
@@ -84,46 +83,51 @@ func (cc *ERC20Chaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	fmt.Println("invoke is running " + fcn + " with params " + params[0])
 
 	if fcn == "totalSupply" {
-		return cc.totalSupply(stub, params)
+		return cc.totalSupply(stub)
 	} else if fcn == "balanceOf" {
 		return cc.balanceOf(stub, params)
-	} else if fcn == "transfer" {
-		return cc.transfer(stub, params)
-	} else if fcn == "checkMsgSender" {
-		return cc.checkMsgSender(stub)
+	} else if fcn == "uploadData" {
+		return cc.uploadData(stub, params)
 	}
 
 	fmt.Println("invoke did not find func: " + fcn) //error
 	return shim.Error("Received unknown function invocation" + fcn)
 }
-
-func (cc *ERC20Chaincode) totalSupply(stub shim.ChaincodeStubInterface, params []string) pb.Response {
-	if len(params) != 1 {
+func (cc *ERC20Chaincode) uploadData(stub shim.ChaincodeStubInterface, params []string) pb.Response {
+	if len(params) != 2 {
 		return shim.Error("Incorrect number of params")
-
 	}
 
-	tokenName := params[0]
-	erc20 := ERC20Metadata{}
-	erc20Bytes, err := stub.GetState(tokenName)
-
-	if err != nil || erc20Bytes == nil {
-		return shim.Error("failed to get bytes data, error: " + err.Error())
+	id, owner := params[0], params[1]
+	if len(id) == 0 || len(owner) == 0 {
+		return shim.Error("Incorrect params value")
 	}
 
-	err = json.Unmarshal(erc20Bytes, &erc20)
+	isExistID, err := stub.GetState(id)
+
+	if isExistID != nil {
+		return shim.Error("Id already existed")
+	}
+	newPrivateData := PrivateData{id, owner}
+	privDataAsBytes, err := json.Marshal(newPrivateData)
 	if err != nil {
-		return shim.Error("failed to get bytes data, error: " + err.Error())
+		return shim.Error("Can not Marshal data" + err.Error())
 	}
-
-	totalSupplyBytes, err := json.Marshal(erc20.TotalSupply)
+	err = stub.PutState(newPrivateData.Id, privDataAsBytes)
 	if err != nil {
-		return shim.Error("failed to Marshal erc20, error: " + err.Error())
+		return shim.Error("Can not put state new privateData" + err.Error())
 	}
 
-	fmt.Println(tokenName + "'s totla supply is " + string(totalSupplyBytes))
+	return cc.mint(stub, owner, 1)
+}
+func (cc *ERC20Chaincode) totalSupply(stub shim.ChaincodeStubInterface) pb.Response {
+	totalTokenSupply, err := stub.GetState(TotalSupplyKey)
+	if err != nil {
+		return shim.Error("Can not get state total supply " + err.Error())
+	}
 
-	return shim.Success(totalSupplyBytes)
+	fmt.Println("Total supply is " + string(totalTokenSupply))
+	return shim.Success(totalTokenSupply)
 }
 
 func (cc *ERC20Chaincode) balanceOf(stub shim.ChaincodeStubInterface, params []string) pb.Response {
@@ -227,6 +231,30 @@ func (cc *ERC20Chaincode) checkMsgSender(stub shim.ChaincodeStubInterface) pb.Re
 	return shim.Success([]byte(buf.Bytes()))
 }
 
+func (cc *ERC20Chaincode) mint(stub shim.ChaincodeStubInterface, to string, amount int) pb.Response {
+
+	if len(to) == 0 {
+		return shim.Error("Invalid type of to")
+	}
+
+	currentBalance, err := stub.GetState(to)
+	if err != nil {
+		stub.PutState(to, []byte(strconv.Itoa(amount)))
+		return shim.Success([]byte("Success Mint Token"))
+	}
+
+	currentBalanceInt, err := strconv.Atoi(string(currentBalance))
+	if err != nil {
+		currentBalanceInt = 0
+	}
+	newBalanceInt := currentBalanceInt + 1
+	err = stub.PutState(to, []byte(strconv.Itoa(newBalanceInt)))
+	if err != nil {
+		return shim.Error("Failed to put new state balance")
+	}
+	return shim.Success([]byte("Success Mint Token"))
+}
+
 func (cc *ERC20Chaincode) allowance(stub shim.ChaincodeStubInterface, params []string) pb.Response {
 	return shim.Success(nil)
 }
@@ -244,10 +272,6 @@ func (cc *ERC20Chaincode) increaseAllowance(stub shim.ChaincodeStubInterface, pa
 }
 
 func (cc *ERC20Chaincode) decreaseAllowance(stub shim.ChaincodeStubInterface, params []string) pb.Response {
-	return shim.Success(nil)
-}
-
-func (cc *ERC20Chaincode) mint(stub shim.ChaincodeStubInterface, params []string) pb.Response {
 	return shim.Success(nil)
 }
 
