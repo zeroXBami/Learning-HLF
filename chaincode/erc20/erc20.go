@@ -120,6 +120,60 @@ func (cc *ERC20Chaincode) uploadData(stub shim.ChaincodeStubInterface, params []
 
 	return cc.mint(stub, owner, 1)
 }
+
+func (cc *ERC20Chaincode) requestViewData(stub shim.ChaincodeStubInterface, params []string) pb.Response {
+
+	if len(params) != 2 {
+		return shim.Error(" Incorrect number of params")
+	}
+
+	requester, dataID := params[0], params[1]
+
+	priVdata := PrivateData{}
+	dataAsBytes, err := stub.GetState(dataID)
+	if err != nil {
+		return shim.Error("Can not find dataId" + err.Error())
+	}
+	err = json.Unmarshal(dataAsBytes, &priVdata)
+	if err != nil {
+		return shim.Error("failed to get bytes data, error: " + err.Error())
+	}
+
+	dataOwner, err := json.Marshal(priVdata.Owner)
+	if err != nil {
+		return shim.Error("failed to Marshal Private Data, error: " + err.Error())
+	}
+
+	return cc.transfer(stub, []string{requester, string(dataOwner), "1"})
+
+}
+
+func (cc *ERC20Chaincode) getTokenInfor(stub shim.ChaincodeStubInterface) pb.Response {
+	tokenName, err := stub.GetState(NameKey)
+	if err != nil {
+		return shim.Error("Can not get state token name " + err.Error())
+	}
+
+	tokenSymbol, err := stub.GetState(SymbolKey)
+	if err != nil {
+		return shim.Error("Can not get state token symbol " + err.Error())
+	}
+
+	tokenPublisher, err := stub.GetState(PublisherKey)
+	if err != nil {
+		return shim.Error("Can not get state token publisher " + err.Error())
+	}
+
+	totalTokenSupply, err := stub.GetState(TotalSupplyKey)
+	if err != nil {
+		return shim.Error("Can not get state total supply " + err.Error())
+	}
+
+	fmt.Println("Total supply is " + string(totalTokenSupply))
+	tokenInfor := string(tokenName) + ", " + string(tokenSymbol) + ", " + string(tokenPublisher) + ", " + string(totalTokenSupply)
+	return shim.Success([]byte(tokenInfor))
+}
+
 func (cc *ERC20Chaincode) totalSupply(stub shim.ChaincodeStubInterface) pb.Response {
 	totalTokenSupply, err := stub.GetState(TotalSupplyKey)
 	if err != nil {
@@ -209,28 +263,6 @@ func (cc *ERC20Chaincode) transfer(stub shim.ChaincodeStubInterface, params []st
 	return shim.Success([]byte("transfer Success"))
 }
 
-func (cc *ERC20Chaincode) checkMsgSender(stub shim.ChaincodeStubInterface) pb.Response {
-	fmt.Printf("\nBegin*** getCreator \n")
-	creator, err := stub.GetCreator()
-	if err != nil {
-		fmt.Printf("GetCreator Error")
-		return shim.Error(err.Error())
-	}
-
-	si := &msp.SerializedIdentity{}
-	err2 := proto.Unmarshal(creator, si)
-	if err2 != nil {
-		fmt.Printf("Proto Unmarshal Error")
-		return shim.Error(err2.Error())
-	}
-	buf := &bytes.Buffer{}
-	protolator.DeepMarshalJSON(buf, si)
-	fmt.Printf("End*** getCreator \n")
-	fmt.Printf(string(buf.Bytes()))
-
-	return shim.Success([]byte(buf.Bytes()))
-}
-
 func (cc *ERC20Chaincode) mint(stub shim.ChaincodeStubInterface, to string, amount int) pb.Response {
 
 	if len(to) == 0 {
@@ -267,14 +299,24 @@ func (cc *ERC20Chaincode) transferFrom(stub shim.ChaincodeStubInterface, params 
 	return shim.Success(nil)
 }
 
-func (cc *ERC20Chaincode) increaseAllowance(stub shim.ChaincodeStubInterface, params []string) pb.Response {
-	return shim.Success(nil)
-}
+func (cc *ERC20Chaincode) checkMsgSender(stub shim.ChaincodeStubInterface) pb.Response {
+	fmt.Printf("\nBegin*** getCreator \n")
+	creator, err := stub.GetCreator()
+	if err != nil {
+		fmt.Printf("GetCreator Error")
+		return shim.Error(err.Error())
+	}
 
-func (cc *ERC20Chaincode) decreaseAllowance(stub shim.ChaincodeStubInterface, params []string) pb.Response {
-	return shim.Success(nil)
-}
+	si := &msp.SerializedIdentity{}
+	err2 := proto.Unmarshal(creator, si)
+	if err2 != nil {
+		fmt.Printf("Proto Unmarshal Error")
+		return shim.Error(err2.Error())
+	}
+	buf := &bytes.Buffer{}
+	protolator.DeepMarshalJSON(buf, si)
+	fmt.Printf("End*** getCreator \n")
+	fmt.Printf(string(buf.Bytes()))
 
-func (cc *ERC20Chaincode) burn(stub shim.ChaincodeStubInterface, params []string) pb.Response {
-	return shim.Success(nil)
+	return shim.Success([]byte(buf.Bytes()))
 }
