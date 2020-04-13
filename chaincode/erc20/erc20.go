@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
+	"github.com/hyperledger/fabric-protos-go/msp"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric/common/tools/protolator"
 )
 
 type ERC20Chaincode struct {
@@ -85,6 +89,8 @@ func (cc *ERC20Chaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 		return cc.balanceOf(stub, params)
 	} else if fcn == "transfer" {
 		return cc.transfer(stub, params)
+	} else if fcn == "checkMsgSender" {
+		return cc.checkMsgSender(stub)
 	}
 
 	fmt.Println("invoke did not find func: " + fcn) //error
@@ -197,6 +203,28 @@ func (cc *ERC20Chaincode) transfer(stub shim.ChaincodeStubInterface, params []st
 
 	fmt.Println(callerAddress + "send" + transferAmount + "to" + recipientAddress)
 	return shim.Success([]byte("transfer Success"))
+}
+
+func (cc *ERC20Chaincode) checkMsgSender(stub shim.ChaincodeStubInterface) pb.Response {
+	fmt.Printf("\nBegin*** getCreator \n")
+	creator, err := stub.GetCreator()
+	if err != nil {
+		fmt.Printf("GetCreator Error")
+		return shim.Error(err.Error())
+	}
+
+	si := &msp.SerializedIdentity{}
+	err2 := proto.Unmarshal(creator, si)
+	if err2 != nil {
+		fmt.Printf("Proto Unmarshal Error")
+		return shim.Error(err2.Error())
+	}
+	buf := &bytes.Buffer{}
+	protolator.DeepMarshalJSON(buf, si)
+	fmt.Printf("End*** getCreator \n")
+	fmt.Printf(string(buf.Bytes()))
+
+	return shim.Success([]byte(buf.Bytes()))
 }
 
 func (cc *ERC20Chaincode) allowance(stub shim.ChaincodeStubInterface, params []string) pb.Response {
