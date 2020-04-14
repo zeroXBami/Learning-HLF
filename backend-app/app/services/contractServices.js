@@ -31,9 +31,41 @@ const transferCarOwnership = async (id, newOwner) => {
     return result; 
 }
 
+const getTokenInfor = async () => {
+    const networkConnection = await network.network();
+    const contract = networkConnection.getContract('erc20');
+    const result = await contract.submitTransaction('getTokenInfor','');
+    return result; 
+}
+
+const getBalanceOf = async (address) => {
+    const networkConnection = await network.network();
+    const contract = networkConnection.getContract('erc20');
+    const result = await contract.submitTransaction('balanceOf',address);
+    return result;
+}
+
+const uploadData = async (dataId, dataOwner) => {
+    const networkConnection = await network.network();
+    const contract = networkConnection.getContract('erc20');
+    const result = await contract.submitTransaction('uploadData',dataId, dataOwner);
+    return result;
+}
+
+const requestViewData = async (requester, dataId) => {
+    const networkConnection = await network.network();
+    const contract = networkConnection.getContract('erc20');
+    const result = await contract.submitTransaction('requestViewData',requester, dataId);
+    return result;
+}
+
 module.exports = {
     queryAll: queryAllCars,
     queryById: queryCarByID,
     createNewCar: createNewCar,
-    transferCarOwnership: transferCarOwnership
+    transferCarOwnership: transferCarOwnership,
+    getTokenInfor: getTokenInfor,
+    getBalanceOf: getBalanceOf,
+    uploadData: uploadData,
+    requestViewData: requestViewData
 }
