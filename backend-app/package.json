@@ -9,8 +9,6 @@
   },
   "author": "Hoang Quan Tran",
   "dependencies": {
-    "fabric-ca-client": "beta",
-    "fabric-network": "beta",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.19.0",
     "compression": "^1.6.2",
@@ -22,6 +20,7 @@
     "fs": "0.0.1-security",
     "jsonwebtoken": "^8.5.1",
     "mongoose": "^5.9.1",
+    "node-yaml": "^4.0.1",
     "nodemon": "^2.0.2",
     "path": "^0.12.7"
   },

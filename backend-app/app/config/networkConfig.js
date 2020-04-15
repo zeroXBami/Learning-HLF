@@ -10,7 +10,6 @@ const walletPath = path.resolve(__dirname,'..', '..', '..', 'fabcar', 'javascrip
 // Create a new file system based wallet for managing identities.
 const networkConnection = async () => {
     const wallet = await Wallets.newFileSystemWallet(walletPath);
-    console.log(`Wallet path: ${walletPath}`);
     
     // Check to see if we've already enrolled the user.
     const identity = await wallet.get('appUser');
@@ -25,7 +24,6 @@ const networkConnection = async () => {
     
     // Get the network (channel) our contract is deployed to.
     const network = await gateway.getNetwork('mychannel'); 
-    console.log(network)
     return network;
 }
 
