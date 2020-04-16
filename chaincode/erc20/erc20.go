@@ -23,9 +23,22 @@ type TransferEvent struct {
 	Amount    int    `json:"amount"`
 }
 
-type PrivateData struct {
+type UploadEvent struct {
+	DataOwner string `json:"owner`
+	DataType  string `json:"type`
+	DataId    string `json:"id`
+}
+
+type PublicData struct {
 	Id    string `json:"id`
 	Owner string `json:"owner`
+	Type  string `json:"type`
+	Price int    `json:"price`
+}
+
+type PrivateData struct {
+	Id     string `json:"it`
+	Detail string `json:"detail`
 }
 
 const SymbolKey = `tokenSymbol`
@@ -103,31 +116,73 @@ func (cc *ERC20Chaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 }
 
 func (cc *ERC20Chaincode) uploadData(stub shim.ChaincodeStubInterface, params []string) pb.Response {
-	if len(params) != 2 {
+	if len(params) != 4 {
 		return shim.Error("Incorrect number of params")
 	}
 
-	id, owner := params[0], params[1]
-	if len(id) == 0 || len(owner) == 0 {
+	id, owner, dataType, price := params[0], params[1], params[3], params[4]
+	if len(id) == 0 || len(owner) == 0 || len(dataType) == 0 {
 		return shim.Error("Incorrect params value")
 	}
-
+	priceInt, err := strconv.Atoi(price)
+	if err != nil {
+		return shim.Error("Price must be int")
+	}
 	isExistID, err := stub.GetState(id)
 
 	if isExistID != nil {
 		return shim.Error("Id already existed")
 	}
-	newPrivateData := PrivateData{id, owner}
-	privDataAsBytes, err := json.Marshal(newPrivateData)
+	newPublicData := PublicData{id, owner, dataType, priceInt}
+	publicDataAsBytes, err := json.Marshal(newPublicData)
 	if err != nil {
 		return shim.Error("Can not Marshal data" + err.Error())
 	}
-	err = stub.PutState(newPrivateData.Id, privDataAsBytes)
+	err = stub.PutState(newPublicData.Id, publicDataAsBytes)
 	if err != nil {
 		return shim.Error("Can not put state new privateData" + err.Error())
 	}
+	type dataTransientInput struct {
+		Id     string `json:"id`
+		Detail string `json:"detail`
+	}
 
-	return cc.mint(stub, owner, 1)
+	transMap, err := stub.GetTransient()
+	if err != nil {
+		return shim.Error("Error getting transient: " + err.Error())
+	}
+	dataJsonBytes, ok := transMap["data"]
+	if !ok {
+		return shim.Error("data must be a key in the transient map")
+	}
+	if len(dataJsonBytes) == 0 {
+		return shim.Error("data value in the transient map must be a non-empty JSON string")
+	}
+
+	var dataInput dataTransientInput
+	err = json.Unmarshal(dataJsonBytes, &dataInput)
+	if err != nil {
+		return shim.Error("Failed to decode JSON of: " + string(dataJsonBytes))
+	}
+	dataAsBytes, err := stub.GetPrivateData("collectionData", dataInput.Id)
+	if err != nil {
+		return shim.Error("Failed to get data: " + err.Error())
+	} else if dataAsBytes != nil {
+		fmt.Println("This data already exists: " + dataInput.Id)
+		return shim.Error("This marble already exists: " + dataInput.Id)
+	}
+
+	privData := &PrivateData{dataInput.Id, dataInput.Detail}
+	privDataJSONasBytes, err := json.Marshal(privData)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	err = stub.PutPrivateData("collectionDataPrivate", dataInput.Id, privDataJSONasBytes)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	return shim.Success([]byte("Success upload data"))
 }
 
 func (cc *ERC20Chaincode) requestViewData(stub shim.ChaincodeStubInterface, params []string) pb.Response {
@@ -138,12 +193,12 @@ func (cc *ERC20Chaincode) requestViewData(stub shim.ChaincodeStubInterface, para
 
 	requester, dataID := params[0], params[1]
 
-	priVdata := PrivateData{}
+	publicData := PublicData{}
 	dataAsBytes, err := stub.GetState(dataID)
 	if err != nil {
 		return shim.Error("Can not find dataId" + err.Error())
 	}
-	err = json.Unmarshal(dataAsBytes, &priVdata)
+	err = json.Unmarshal(dataAsBytes, &publicData)
 	if err != nil {
 		return shim.Error("failed to get bytes data, error: " + err.Error())
 	}
@@ -152,7 +207,7 @@ func (cc *ERC20Chaincode) requestViewData(stub shim.ChaincodeStubInterface, para
 		return shim.Error("failed to Marshal Private Data, error: " + err.Error())
 	}
 
-	return cc.transfer(stub, []string{requester, priVdata.Owner, "1"})
+	return cc.transfer(stub, []string{requester, publicData.Owner, "1"})
 
 }
 
