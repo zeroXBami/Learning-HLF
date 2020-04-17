@@ -4,8 +4,9 @@
       "policy": "OR('Org1MSP.member')",
       "requiredPeerCount": 0,
       "maxPeerCount": 3,
-      "blockToLive":3,
-      "memberOnlyRead": true
+      "blockToLive":0,
+      "memberOnlyRead": true,
+      "memberOnlyWrite": true
     }
 ]
    

@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
+	"github.com/hyperledger/fabric-chaincode-go/pkg/cid"
 	"github.com/hyperledger/fabric-protos-go/msp"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric/common/tools/protolator"
@@ -21,6 +22,12 @@ type TransferEvent struct {
 	Sender    string `json:"sender`
 	Recipient string `json:"recipient`
 	Amount    int    `json:"amount"`
+}
+
+type AllowanceEvent struct {
+	Owner 	  string `json:"owner`
+	Spender   string `json:"spender`
+	Amount 	  int 	 `json:"amount`
 }
 
 type UploadEvent struct {
@@ -82,7 +89,7 @@ func (cc *ERC20Chaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
 	if err != nil {
 		return shim.Error("Failed to putstate, error: " + err.Error())
 	}
-
+	// Mint amount of token (initSupply) to Intage at deploy time
 	err = stub.PutState("Intage", []byte(initSupply))
 	if err != nil {
 		return shim.Error("Failed to putstate, error: " + err.Error())
@@ -109,6 +116,14 @@ func (cc *ERC20Chaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 		return cc.getTokenInfor(stub)
 	} else if fcn == "requestViewData" {
 		return cc.requestViewData(stub, params)
+	} else if fcn == "mint" {
+		return cc.mint(stub, params)
+	} else if fcn == "checkUser" {
+		return cc.checkUser(stub)
+	} else if fcn == "approve" {
+		return cc.approve(stub, params)
+	} else if fcn == "checkIssuer" {
+		return cc.checkIssuer(stub)
 	}
 
 	fmt.Println("invoke did not find func: " + fcn) //error
@@ -182,6 +197,16 @@ func (cc *ERC20Chaincode) uploadData(stub shim.ChaincodeStubInterface, params []
 	if err != nil {
 		return shim.Error(err.Error())
 	}
+
+	uploadEvent := UploadEvent{DataOwner: newPublicData.Owner, DataId: newPublicData.Id, DataType: newPublicData.Type}
+	uploadDataEventBytes, err := json.Marshal(uploadEvent)
+	if err != nil {
+		return shim.Error("failed to Marshal uploadEvent, error: " + err.Error())
+	}
+	err = stub.SetEvent("uploadEvent", uploadDataEventBytes)
+	if err != nil {
+		return shim.Error("failed to setEvent, error: " + err.Error())
+	}
 	return shim.Success([]byte("Success upload data"))
 }
 
@@ -191,7 +216,14 @@ func (cc *ERC20Chaincode) requestViewData(stub shim.ChaincodeStubInterface, para
 		return shim.Error(" Incorrect number of params")
 	}
 
-	requester, dataID := params[0], params[1]
+	x509, err := cid.GetX509Certificate(stub)
+	if x509 == nil {
+		return shim.Error("Can not get X509 Cert" + err.Error())
+	}
+	requester := x509.Subject.CommonName
+
+	dataID := params[0]
+	
 
 	publicData := PublicData{}
 	dataAsBytes, err := stub.GetState(dataID)
@@ -326,15 +358,25 @@ func (cc *ERC20Chaincode) transfer(stub shim.ChaincodeStubInterface, params []st
 	return shim.Success([]byte("transfer Success" + transferAmount))
 }
 
-func (cc *ERC20Chaincode) mint(stub shim.ChaincodeStubInterface, to string, amount int) pb.Response {
+func (cc *ERC20Chaincode) mint(stub shim.ChaincodeStubInterface, params []string) pb.Response {
 
-	if len(to) == 0 {
-		return shim.Error("Invalid type of to")
+	if len(params) != 2 {
+		return shim.Error("Incorect number of params")
 	}
+	x509, err := cid.GetX509Certificate(stub)
+	if err != nil {
+		return shim.Error("Can not get X509 Certs" + err.Error())
+	}
+	senderName := x509.Subject.CommonName
+	issuerName := x509.Issuer.Organization[0]
 
+	if  issuerName != "intage.example.com" && senderName != "Intage" {
+		return shim.Error("Only Intage can mint token")
+	}
+	to, amount := params[0], params[1]
 	currentBalance, err := stub.GetState(to)
 	if err != nil {
-		stub.PutState(to, []byte(strconv.Itoa(amount)))
+		stub.PutState(to, []byte(amount))
 		return shim.Success([]byte("Success Mint Token"))
 	}
 
@@ -386,4 +428,14 @@ func (cc *ERC20Chaincode) checkMsgSender(stub shim.ChaincodeStubInterface) pb.Re
 	fmt.Printf(string(buf.Bytes()))
 
 	return shim.Success([]byte(buf.Bytes()))
+}
+
+func (cc *ERC20Chaincode) checkUser(stub shim.ChaincodeStubInterface) pb.Response {
+	x509, _ := cid.GetX509Certificate(stub)
+	return shim.Success([]byte(x509.Subject.CommonName))
+}
+
+func (cc *ERC20Chaincode) checkIssuer(stub shim.ChaincodeStubInterface) pb.Response {
+	x509, _ := cid.GetX509Certificate(stub)
+	return shim.Success([]byte(x509.Issuer.CommonName))
 }
