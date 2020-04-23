@@ -1,0 +1,9 @@
+# Logs
+logs
+*.log
+package-lock.json
+yarn.lock
+
+node_modules/
+.env
+app/scripts/*
